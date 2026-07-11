@@ -383,6 +383,7 @@ struct CustomEnhancementModelEditorPanel: View {
     @State private var baseURL = ""
     @State private var apiKey = ""
     @State private var modelName = ""
+    @State private var reasoningEffort = ""
     @State private var errorMessage: String?
     @State private var isSaving = false
     @State private var connectionTest: ConnectionTestState = .idle
@@ -445,6 +446,7 @@ struct CustomEnhancementModelEditorPanel: View {
                                 label: "API Key", placeholder: String(localized: "Paste API key"), text: $apiKey,
                                 isSecure: true)
                             CustomModelTextField(label: "Model Name", placeholder: "gpt-5.5", text: $modelName)
+                            CustomModelReasoningPicker(selection: $reasoningEffort)
                             ConnectionTestRow(
                                 state: connectionTest, isDisabled: !canTestConnection, action: runConnectionTest)
                         }
@@ -488,11 +490,13 @@ struct CustomEnhancementModelEditorPanel: View {
             baseURL = editingProvider.baseURL
             apiKey = APIKeyManager.shared.getCustomAIProviderAPIKey(forProviderId: editingProvider.id) ?? ""
             modelName = editingProvider.modelName
+            reasoningEffort = editingProvider.reasoningEffort ?? ""
         } else {
             displayName = ""
             baseURL = "https://api.openai.com/v1/chat/completions"
             apiKey = ""
             modelName = "gpt-5.5"
+            reasoningEffort = ""
         }
 
         errorMessage = nil
@@ -532,12 +536,15 @@ struct CustomEnhancementModelEditorPanel: View {
 
         errorMessage = nil
 
+        let trimmedReasoningEffort = reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let provider = CustomAIProviderConfig(
             id: editingProvider?.id ?? UUID(),
             name: trimmedName,
             baseURL: trimmedURL,
             models: [trimmedModelName],
-            selectedModel: trimmedModelName
+            selectedModel: trimmedModelName,
+            reasoningEffort: trimmedReasoningEffort.isEmpty ? nil : trimmedReasoningEffort
         )
 
         if isEditing {
@@ -616,6 +623,40 @@ private struct CustomModelTextField: View {
                 }
             }
             .textFieldStyle(.roundedBorder)
+            .font(.system(size: 12))
+            .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CustomModelReasoningPicker: View {
+    @Binding var selection: String
+
+    /// (tag value sent as `reasoning_effort`, display label). Empty tag omits the parameter.
+    private static let options: [(value: String, label: String)] = [
+        ("", String(localized: "Default")),
+        ("none", "none"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Reasoning Effort")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: CustomModelEditorMetrics.labelWidth, alignment: .leading)
+
+            Picker("", selection: $selection) {
+                ForEach(Self.options, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
             .font(.system(size: 12))
             .frame(maxWidth: CustomModelEditorMetrics.fieldMaxWidth, alignment: .trailing)
         }

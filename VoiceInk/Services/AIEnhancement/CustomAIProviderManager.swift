@@ -7,13 +7,28 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
     var baseURL: String
     var models: [String]
     var selectedModel: String
+    /// Optional OpenAI-style `reasoning_effort` value (e.g. "none", "low", "medium", "high").
+    /// `nil` or empty means the parameter is omitted from the request (default behaviour).
+    var reasoningEffort: String?
 
-    init(id: UUID = UUID(), name: String, baseURL: String, models: [String], selectedModel: String) {
+    init(
+        id: UUID = UUID(), name: String, baseURL: String, models: [String], selectedModel: String,
+        reasoningEffort: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.models = models
         self.selectedModel = selectedModel
+        self.reasoningEffort = reasoningEffort
+    }
+
+    /// Normalised effort to send in requests: trimmed, non-empty, or `nil` to omit.
+    var normalizedReasoningEffort: String? {
+        guard let trimmed = reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !trimmed.isEmpty
+        else { return nil }
+        return trimmed
     }
 
     var trimmedModels: [String] {
@@ -37,7 +52,8 @@ struct CustomAIProviderConfig: Identifiable, Codable, Hashable {
             name: name,
             baseURL: baseURL,
             models: resolvedModelName.isEmpty ? [] : [resolvedModelName],
-            selectedModel: resolvedModelName
+            selectedModel: resolvedModelName,
+            reasoningEffort: normalizedReasoningEffort
         )
     }
 }
@@ -155,7 +171,9 @@ final class CustomAIProviderManager: ObservableObject {
         }
     }
 
-    func requestConfiguration(forModel modelName: String) -> (baseURL: String, apiKey: String, modelName: String)? {
+    func requestConfiguration(forModel modelName: String)
+        -> (baseURL: String, apiKey: String, modelName: String, reasoningEffort: String?)?
+    {
         guard let provider = provider(forModel: modelName),
             let apiKey = APIKeyManager.shared.getCustomAIProviderAPIKey(forProviderId: provider.id),
             !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -163,7 +181,7 @@ final class CustomAIProviderManager: ObservableObject {
             return nil
         }
 
-        return (provider.baseURL, apiKey, provider.modelName)
+        return (provider.baseURL, apiKey, provider.modelName, provider.normalizedReasoningEffort)
     }
 
     func validateProvider(name: String, baseURL: String, model: String, excluding id: UUID? = nil) -> [String] {

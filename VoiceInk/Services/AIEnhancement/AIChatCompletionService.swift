@@ -35,6 +35,7 @@ extension AIService {
                 messages: messages,
                 systemPrompt: systemPrompt,
                 temperature: 0.3,
+                reasoningEffort: customConfiguration.reasoningEffort,
                 timeout: timeout
             )
         case .ollama:
