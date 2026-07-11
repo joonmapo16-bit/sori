@@ -97,6 +97,13 @@ class FluidAudioModelManager: ObservableObject {
         NemotronVariant(modelName: modelName) != nil
     }
 
+    /// True when `modelName` is a Nemotron model whose weights are already on disk
+    /// (so it can be preloaded without triggering a download).
+    nonisolated static func isNemotronDownloaded(named modelName: String) -> Bool {
+        guard let variant = NemotronVariant(modelName: modelName) else { return false }
+        return nemotronRequiredFilesExist(in: nemotronCacheDirectory(for: variant))
+    }
+
     nonisolated static func requiresRealtime(named modelName: String) -> Bool {
         isNemotronModel(named: modelName)
     }

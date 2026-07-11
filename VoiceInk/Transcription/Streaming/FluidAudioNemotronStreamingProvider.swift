@@ -19,6 +19,11 @@ private actor NemotronManagerCache {
     func put(_ manager: StreamingNemotronMultilingualAsrManager, for key: String) {
         managers[key] = manager
     }
+
+    /// Whether a warm manager is already cached (and not currently checked out).
+    func contains(_ key: String) -> Bool {
+        managers[key] != nil
+    }
 }
 
 /// True streaming provider backed by FluidAudio's Nemotron multilingual manager.
@@ -38,6 +43,30 @@ final class FluidAudioNemotronStreamingProvider: StreamingTranscriptionProvider 
 
     deinit {
         eventsContinuation?.finish()
+    }
+
+    /// Preloads the Nemotron model into the warm cache so the first real
+    /// `connect()` after model selection / launch is instant instead of paying
+    /// the one-time ~22s CoreML load during the user's first dictation.
+    /// No-op if already warm. Safe to call repeatedly.
+    static func warmUp(model: any TranscriptionModel) {
+        // Capture only Sendable values (URL/String); never the non-Sendable model.
+        let cacheDirectory = FluidAudioModelManager.nemotronCacheDirectory(for: model.name)
+        let key = cacheDirectory.path
+        let displayName = model.displayName
+        Task.detached(priority: .utility) {
+            let logger = Logger(
+                subsystem: "com.prakashjoshipax.voiceink", category: "FluidAudioNemotronStreaming")
+            if await NemotronManagerCache.shared.contains(key) { return }
+            do {
+                let manager = StreamingNemotronMultilingualAsrManager()
+                try await manager.loadModels(from: cacheDirectory)
+                await NemotronManagerCache.shared.put(manager, for: key)
+                logger.notice("Nemotron streaming warmed up for \(displayName, privacy: .public)")
+            } catch {
+                logger.error("Nemotron warmup failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     func connect(model: any TranscriptionModel, language: String?) async throws {

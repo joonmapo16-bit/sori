@@ -78,7 +78,15 @@ class TranscriptionModelManager: ObservableObject {
 
             currentTranscriptionModel = savedModel
             ensureSelectedLanguageIsSupported(by: savedModel)
+            warmUpStreamingModelIfNeeded(savedModel)
         }
+    }
+
+    /// Preload a realtime model's weights when it becomes the selected model, so
+    /// the first dictation connects instantly instead of paying the one-time load.
+    private func warmUpStreamingModelIfNeeded(_ model: any TranscriptionModel) {
+        guard FluidAudioModelManager.isNemotronDownloaded(named: model.name) else { return }
+        FluidAudioNemotronStreamingProvider.warmUp(model: model)
     }
 
     // MARK: - Set default model
@@ -95,6 +103,7 @@ class TranscriptionModelManager: ObservableObject {
         self.currentTranscriptionModel = model
         UserDefaults.standard.set(model.name, forKey: "CurrentTranscriptionModel")
         ensureSelectedLanguageIsSupported(by: model)
+        warmUpStreamingModelIfNeeded(model)
 
         if model.provider != .whisper {
             whisperModelManager?.loadedWhisperModel = nil
