@@ -7,6 +7,7 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     let onRecordButtonTapped: () -> Void
     let onCloseTapped: () -> Void
     let onAssistantFollowUp: (String) -> Void
+    @AppStorage(RecorderDisplaySettingsKeys.showLiveTranscript) private var showLiveTranscript = true
 
     // MARK: - Layout Constants
 
@@ -19,7 +20,8 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
     // true when live transcript is streaming in during recording
     private var hasLiveTranscript: Bool {
-        stateProvider.recordingState == .recording
+        showLiveTranscript
+            && stateProvider.recordingState == .recording
             && !stateProvider.partialTranscript.isEmpty
     }
 
@@ -28,13 +30,11 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     }
 
     private var shouldShowCloseButton: Bool {
-        hasAssistantResponse &&
-            stateProvider.recordingState == .idle &&
-            !assistantSession.isBusy
+        hasAssistantResponse && stateProvider.recordingState == .idle && !assistantSession.isBusy
     }
 
     private var liveAssistantFollowUpText: String {
-        guard stateProvider.recordingState == .recording else { return "" }
+        guard showLiveTranscript, stateProvider.recordingState == .recording else { return "" }
         return stateProvider.partialTranscript
     }
 
@@ -95,7 +95,11 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         }
         .frame(width: hasAssistantResponse ? assistantWidth : (hasLiveTranscript ? expandedWidth : compactWidth))
         .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: hasLiveTranscript || hasAssistantResponse ? expandedCornerRadius : compactCornerRadius, style: .continuous))
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: hasLiveTranscript || hasAssistantResponse ? expandedCornerRadius : compactCornerRadius,
+                style: .continuous)
+        )
         .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
         .animation(.easeInOut(duration: 0.3), value: hasAssistantResponse)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

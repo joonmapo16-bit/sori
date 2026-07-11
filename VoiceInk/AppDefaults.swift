@@ -8,6 +8,10 @@ enum CleanupSettingsKeys {
     static let lastAutomaticAudioCleanupDate = "AudioCleanupLastAutomaticCleanupDate"
 }
 
+enum RecorderDisplaySettingsKeys {
+    static let showLiveTranscript = "ShowLiveTranscript"
+}
+
 enum AppDefaults {
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -25,8 +29,10 @@ enum AppDefaults {
             "isSystemMuteEnabled": true,
             "audioResumptionDelay": 0.0,
             "isPauseMediaEnabled": false,
-            CustomSoundManager.SoundType.start.builtInSoundKey: CustomSoundManager.SoundType.start.defaultBuiltInSound.rawValue,
-            CustomSoundManager.SoundType.stop.builtInSoundKey: CustomSoundManager.SoundType.stop.defaultBuiltInSound.rawValue,
+            CustomSoundManager.SoundType.start.builtInSoundKey: CustomSoundManager.SoundType.start.defaultBuiltInSound
+                .rawValue,
+            CustomSoundManager.SoundType.stop.builtInSoundKey: CustomSoundManager.SoundType.stop.defaultBuiltInSound
+                .rawValue,
 
             // Recording & Transcription
             "IsTextFormattingEnabled": true,
@@ -34,6 +40,7 @@ enum AppDefaults {
             "SelectedLanguage": "en",
             "AppendTrailingSpace": true,
             "RecorderType": "mini",
+            RecorderDisplaySettingsKeys.showLiveTranscript: true,
 
             // Cleanup
             CleanupSettingsKeys.isTranscriptionCleanupEnabled: false,

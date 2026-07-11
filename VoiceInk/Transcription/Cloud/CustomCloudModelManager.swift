@@ -3,19 +3,19 @@ import os
 
 class CustomCloudModelManager: ObservableObject {
     static let shared = CustomCloudModelManager()
-    
+
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "CustomCloudModelManager")
     private let userDefaults = UserDefaults.standard
     private let customModelsKey = "customCloudModels"
-    
+
     @Published var customModels: [CustomCloudModel] = []
-    
+
     private init() {
         loadCustomModels()
     }
-    
+
     // MARK: - CRUD Operations
-    
+
     private func addCustomModel(_ model: CustomCloudModel) {
         customModels.append(model)
         saveCustomModels()
@@ -25,7 +25,8 @@ class CustomCloudModelManager: ObservableObject {
     func addCustomModel(_ model: CustomCloudModel, apiKey: String) -> Bool {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty,
-              APIKeyManager.shared.saveCustomModelAPIKey(trimmedKey, forModelId: model.id) else {
+            APIKeyManager.shared.saveCustomModelAPIKey(trimmedKey, forModelId: model.id)
+        else {
             return false
         }
 
@@ -39,20 +40,31 @@ class CustomCloudModelManager: ObservableObject {
         APIKeyManager.shared.deleteCustomModelAPIKey(forModelId: id)
     }
 
-    func updateCustomModel(_ updatedModel: CustomCloudModel) {
+    @discardableResult
+    func updateCustomModel(_ updatedModel: CustomCloudModel, apiKey: String? = nil) -> Bool {
+        if let apiKey {
+            let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedKey.isEmpty,
+                APIKeyManager.shared.saveCustomModelAPIKey(trimmedKey, forModelId: updatedModel.id)
+            else {
+                return false
+            }
+        }
+
         if let index = customModels.firstIndex(where: { $0.id == updatedModel.id }) {
             customModels[index] = updatedModel
             saveCustomModels()
         }
+        return true
     }
-    
+
     // MARK: - Persistence
-    
+
     private func loadCustomModels() {
         guard let data = userDefaults.data(forKey: customModelsKey) else {
             return
         }
-        
+
         do {
             customModels = try JSONDecoder().decode([CustomCloudModel].self, from: data)
         } catch {
@@ -60,7 +72,7 @@ class CustomCloudModelManager: ObservableObject {
             customModels = []
         }
     }
-    
+
     func saveCustomModels() {
         do {
             let data = try JSONEncoder().encode(customModels)
@@ -69,10 +81,12 @@ class CustomCloudModelManager: ObservableObject {
             logger.error("Failed to encode custom models: \(error, privacy: .public)")
         }
     }
-    
+
     // MARK: - Validation
 
-    func validateModelDetails(name: String, displayName: String, apiEndpoint: String, modelName: String, excludingId: UUID? = nil) -> [String] {
+    func validateModelDetails(
+        name: String, displayName: String, apiEndpoint: String, modelName: String, excludingId: UUID? = nil
+    ) -> [String] {
         var errors: [String] = []
 
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -99,11 +113,11 @@ class CustomCloudModelManager: ObservableObject {
 
         return errors
     }
-    
+
     private func isValidURL(_ string: String) -> Bool {
         if let url = URL(string: string) {
             return url.scheme != nil && url.host != nil
         }
         return false
     }
-} 
+}
