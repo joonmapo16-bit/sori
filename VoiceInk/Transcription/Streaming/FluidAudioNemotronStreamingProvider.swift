@@ -2,10 +2,30 @@ import FluidAudio
 import Foundation
 import os
 
+/// Keeps a loaded `StreamingNemotronMultilingualAsrManager` alive across sessions
+/// so `connect()` doesn't pay the ~22s CoreML load on every recording. A fresh
+/// provider is created per recording, so the cache must be process-wide.
+private actor NemotronManagerCache {
+    static let shared = NemotronManagerCache()
+
+    private var managers: [String: StreamingNemotronMultilingualAsrManager] = [:]
+
+    /// Checks out a warm manager (removed from the cache while in use).
+    func take(for key: String) -> StreamingNemotronMultilingualAsrManager? {
+        managers.removeValue(forKey: key)
+    }
+
+    /// Returns a still-loaded manager to the cache for reuse.
+    func put(_ manager: StreamingNemotronMultilingualAsrManager, for key: String) {
+        managers[key] = manager
+    }
+}
+
 /// True streaming provider backed by FluidAudio's Nemotron multilingual manager.
 final class FluidAudioNemotronStreamingProvider: StreamingTranscriptionProvider {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "FluidAudioNemotronStreaming")
     private var manager: StreamingNemotronMultilingualAsrManager?
+    private var cacheKey: String?
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?
 
     private(set) var transcriptionEvents: AsyncStream<StreamingTranscriptionEvent>
@@ -22,13 +42,25 @@ final class FluidAudioNemotronStreamingProvider: StreamingTranscriptionProvider 
 
     func connect(model: any TranscriptionModel, language: String?) async throws {
         let cacheDirectory = FluidAudioModelManager.nemotronCacheDirectory(for: model.name)
-        let manager = StreamingNemotronMultilingualAsrManager()
+        let key = cacheDirectory.path
+        self.cacheKey = key
         let continuation = eventsContinuation
+
+        let manager: StreamingNemotronMultilingualAsrManager
+        if let warm = await NemotronManagerCache.shared.take(for: key) {
+            // Reuse an already-loaded manager: reset streaming state only, keep models resident.
+            manager = warm
+            await manager.reset()
+            logger.notice("Nemotron streaming reused warm model for \(model.displayName, privacy: .public)")
+        } else {
+            // Cold start: pay the one-time CoreML load. Subsequent sessions reuse this manager.
+            manager = StreamingNemotronMultilingualAsrManager()
+            try await manager.loadModels(from: cacheDirectory)
+        }
 
         await manager.setPartialCallback { partial in
             continuation?.yield(.partial(text: partial))
         }
-        try await manager.loadModels(from: cacheDirectory)
         let compatibleLanguage = TranscriptionLanguageSupport.validLanguageOrFallback(
             language,
             for: model
@@ -64,7 +96,14 @@ final class FluidAudioNemotronStreamingProvider: StreamingTranscriptionProvider 
     }
 
     func disconnect() async {
-        await manager?.cleanup()
+        // Keep the loaded models resident: reset streaming state and return the
+        // manager to the warm cache instead of tearing it down with cleanup().
+        if let manager, let cacheKey {
+            await manager.reset()
+            await NemotronManagerCache.shared.put(manager, for: cacheKey)
+        } else {
+            await manager?.cleanup()
+        }
         manager = nil
         eventsContinuation?.finish()
         logger.notice("Nemotron streaming disconnected")
