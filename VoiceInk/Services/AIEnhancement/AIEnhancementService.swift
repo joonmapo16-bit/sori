@@ -274,6 +274,7 @@ class AIEnhancementService: ObservableObject {
                     messages: [.user(formattedText)],
                     systemPrompt: systemMessage,
                     temperature: 0.3,
+                    reasoningEffort: customConfiguration.reasoningEffort,
                     timeout: baseTimeout
                 )
             default:
