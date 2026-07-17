@@ -454,31 +454,41 @@ private struct MainWindowRequestBridge: View {
 }
 
 class UpdaterViewModel: ObservableObject {
-    private let updaterController: SPUStandardUpdaterController
+    // The Sparkle feed in Info.plist points at upstream's signed releases, which would
+    // replace a locally built app with one that has no LOCAL_BUILD flag.
+    #if !LOCAL_BUILD
+        private let updaterController: SPUStandardUpdaterController
+    #endif
 
     @Published var canCheckForUpdates = false
     @Published var automaticallyChecksForUpdates = false
 
     init() {
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        #if !LOCAL_BUILD
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
-        automaticallyChecksForUpdates = updaterController.updater.automaticallyChecksForUpdates
+            automaticallyChecksForUpdates = updaterController.updater.automaticallyChecksForUpdates
 
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
+            updaterController.updater.publisher(for: \.canCheckForUpdates)
+                .assign(to: &$canCheckForUpdates)
 
-        updaterController.updater.publisher(for: \.automaticallyChecksForUpdates)
-            .assign(to: &$automaticallyChecksForUpdates)
+            updaterController.updater.publisher(for: \.automaticallyChecksForUpdates)
+                .assign(to: &$automaticallyChecksForUpdates)
+        #endif
     }
 
     func setAutomaticallyChecksForUpdates(_ value: Bool) {
-        updaterController.updater.automaticallyChecksForUpdates = value
+        #if !LOCAL_BUILD
+            updaterController.updater.automaticallyChecksForUpdates = value
+        #endif
     }
 
     func checkForUpdates() {
         // This is for manual checks - will show UI
-        updaterController.checkForUpdates(nil)
+        #if !LOCAL_BUILD
+            updaterController.checkForUpdates(nil)
+        #endif
     }
 }
 
